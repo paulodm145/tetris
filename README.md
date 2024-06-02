@@ -1,5 +1,7 @@
 # Projeto: Jogo de Tetris
 
+![Jogo de Tetris](print.png)
+
 Este projeto é uma implementação simples do jogo de Tetris utilizando HTML, CSS e JavaScript.
 
 ## Conteúdo dos Arquivos
