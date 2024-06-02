@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Tetris</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            background-color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+        }
+        #tetris-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        #tetris {
+            width: 300px; /* 10 cells * 30px each */
+            height: 600px; /* 20 cells * 30px each */
+            border: 2px solid #333;
+            background-color: #fff;
+            display: grid;
+            grid-template-columns: repeat(10, 1fr);
+            grid-template-rows: repeat(20, 1fr);
+            gap: 1px;
+            margin-bottom: 20px;
+        }
+        #tetris div {
+            background-color: #f0f0f0;
+            box-sizing: border-box;
+        }
+        #score {
+            font-size: 1.5em;
+            color: #333;
+            margin-bottom: 10px;
+        }
+        #score span {
+            font-weight: bold;
+        }
+        .buttons {
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            color: #fff;
+            background-color: #007bff;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div id="tetris-container">
+        <div id="score">Pontuação: <span>0</span></div>
+        <div id="tetris"></div>
+        <div class="buttons">
+            <button id="restart">Reiniciar</button>
+            <button id="pause">Pausar</button>
+            <button id="reset-score">Zerar Pontuação</button>
+        </div>
+    </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const grid = document.querySelector('#tetris');
+            const width = 10;
+            let timerId;
+            let score = localStorage.getItem('tetrisScore') ? parseInt(localStorage.getItem('tetrisScore')) : 0;
+            const colors = ['orange', 'red', 'purple', 'green', 'blue'];
+            
+            const restartButton = document.getElementById('restart');
+            const pauseButton = document.getElementById('pause');
+            const resetScoreButton = document.getElementById('reset-score');
+            const scoreDisplay = document.querySelector('#score span');
+
+            scoreDisplay.innerText = score;
+
+            function createBoard() {
+                grid.innerHTML = '';
+                for (let i = 0; i < 200; i++) {
+                    let square = document.createElement('div');
+                    grid.appendChild(square);
+                }
+                // Creating bottom row with 'taken' class
+                for (let i = 0; i < 10; i++) {
+                    let square = document.createElement('div');
+                    square.classList.add('taken');
+                    grid.appendChild(square);
+                }
+                return Array.from(grid.querySelectorAll('div'));
+            }
+
+            let squares = createBoard();
+
+            const lTetromino = [
+                [1, width + 1, width * 2 + 1, 2],
+                [width, width + 1, width + 2, width * 2 + 2],
+                [1, width + 1, width * 2 + 1, width * 2],
+                [width, width * 2, width * 2 + 1, width * 2 + 2]
+            ];
+
+            const zTetromino = [
+                [0, width, width + 1, width * 2 + 1],
+                [width + 1, width + 2, width * 2, width * 2 + 1],
+                [0, width, width + 1, width * 2 + 1],
+                [width + 1, width + 2, width * 2, width * 2 + 1]
+            ];
+
+            const tTetromino = [
+                [1, width, width + 1, width + 2],
+                [1, width + 1, width + 2, width * 2 + 1],
+                [width, width + 1, width + 2, width * 2 + 1],
+                [1, width, width + 1, width * 2 + 1]
+            ];
+
+            const oTetromino = [
+                [0, 1, width, width + 1],
+                [0, 1, width, width + 1],
+                [0, 1, width, width + 1],
+                [0, 1, width, width + 1]
+            ];
+
+            const iTetromino = [
+                [1, width + 1, width * 2 + 1, width * 3 + 1],
+                [width, width + 1, width + 2, width + 3],
+                [1, width + 1, width * 2 + 1, width * 3 + 1],
+                [width, width + 1, width + 2, width + 3]
+            ];
+
+            const tetrominos = [lTetromino, zTetromino, tTetromino, oTetromino, iTetromino];
+            let currentRotation = 0;
+            let random = Math.floor(Math.random() * tetrominos.length);
+            let current = tetrominos[random][currentRotation];
+
+            let currentPosition = 4; // start position at the top middle of the grid
+
+            function draw() {
+                current.forEach(index => {
+                    squares[currentPosition + index].style.backgroundColor = colors[random];
+                });
+            }
+
+            function undraw() {
+                current.forEach(index => {
+                    squares[currentPosition + index].style.backgroundColor = '';
+                });
+            }
+
+            function control(e) {
+                if (e.keyCode === 37) {
+                    moveLeft();
+                } else if (e.keyCode === 38) {
+                    rotate();
+                } else if (e.keyCode === 39) {
+                    moveRight();
+                } else if (e.keyCode === 40) {
+                    moveDown();
+                }
+            }
+            document.addEventListener('keyup', control);
+
+            function moveDown() {
+                undraw();
+                currentPosition += width;
+                draw();
+                freeze();
+            }
+
+            function freeze() {
+                if (current.some(index => squares[currentPosition + index + width].classList.contains('taken'))) {
+                    current.forEach(index => squares[currentPosition + index].classList.add('taken'));
+                    // Start a new tetromino falling
+                    random = Math.floor(Math.random() * tetrominos.length);
+                    currentRotation = 0;
+                    current = tetrominos[random][currentRotation];
+                    currentPosition = 4;
+                    draw();
+                    addScore();
+                    gameOver();
+                }
+            }
+
+            function moveLeft() {
+                undraw();
+                const isAtLeftEdge = current.some(index => (currentPosition + index) % width === 0);
+                if (!isAtLeftEdge) currentPosition -= 1;
+                if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+                    currentPosition += 1;
+                }
+                draw();
+            }
+
+            function moveRight() {
+                undraw();
+                const isAtRightEdge = current.some(index => (currentPosition + index) % width === width - 1);
+                if (!isAtRightEdge) currentPosition += 1;
+                if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+                    currentPosition -= 1;
+                }
+                draw();
+            }
+
+            function rotate() {
+                undraw();
+                currentRotation++;
+                if (currentRotation === current.length) {
+                    currentRotation = 0;
+                }
+                current = tetrominos[random][currentRotation];
+                draw();
+            }
+
+            function addScore() {
+                for (let i = 0; i < 199; i += width) {
+                    const row = [i, i + 1, i + 2, i + 3, i + 4, i + 5, i + 6, i + 7, i + 8, i + 9];
+                    if (row.every(index => squares[index].classList.contains('taken'))) {
+                        score += 10;
+                        scoreDisplay.innerText = score;
+                        localStorage.setItem('tetrisScore', score);
+                        row.forEach(index => {
+                            squares[index].classList.remove('taken');
+                            squares[index].style.backgroundColor = '';
+                        });
+                        const squaresRemoved = squares.splice(i, width);
+                        squares = squaresRemoved.concat(squares);
+                        squares.forEach(cell => grid.appendChild(cell));
+                    }
+                }
+            }
+
+            function gameOver() {
+                if (current.some(index => squares[currentPosition + index].classList.contains('taken'))) {
+                    scoreDisplay.innerText = 'Fim de jogo';
+                    clearInterval(timerId);
+                }
+            }
+
+            restartButton.addEventListener('click', () => {
+                clearInterval(timerId);
+                squares = createBoard();
+                score = 0;
+                scoreDisplay.innerText = score;
+                localStorage.setItem('tetrisScore', score);
+                random = Math.floor(Math.random() * tetrominos.length);
+                currentRotation = 0;
+                current = tetrominos[random][currentRotation];
+                currentPosition = 4;
+                draw();
+                timerId = setInterval(moveDown, 1000);
+            });
+
+            pauseButton.addEventListener('click', () => {
+                if (timerId) {
+                    clearInterval(timerId);
+                    timerId = null;
+                    pauseButton.innerText = 'Retomar';
+                } else {
+                    timerId = setInterval(moveDown, 1000);
+                    pauseButton.innerText = 'Pausar';
+                }
+            });
+
+            resetScoreButton.addEventListener('click', () => {
+                score = 0;
+                scoreDisplay.innerText = score;
+                localStorage.setItem('tetrisScore', score);
+            });
+
+            timerId = setInterval(moveDown, 1000); // Ajuste o intervalo de acordo com a dificuldade desejada
+        });
+    </script>
+</body>
+</html>
